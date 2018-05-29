@@ -827,7 +827,10 @@ bool TailDuplicator::tailDuplicate(bool IsSimple, MachineBasicBlock *TailBB,
       IsLayoutSuccessor = (ForcedLayoutPred == PredBB);
     else if (PredBB->isLayoutSuccessor(TailBB) && PredBB->canFallThrough())
       IsLayoutSuccessor = true;
-    if (IsLayoutSuccessor)
+    // Always duplicate into predecessor if it contains a return stack epilogue
+    // that can be optimized.
+    bool optimizeEpilogue = TII->canOptimizeEpilogue(*PredBB);
+    if (IsLayoutSuccessor && !optimizeEpilogue)
       continue;
 
     LLVM_DEBUG(dbgs() << "\nTail-duplicating into PredBB: " << *PredBB
@@ -870,6 +873,10 @@ bool TailDuplicator::tailDuplicate(bool IsSimple, MachineBasicBlock *TailBB,
            "TailDuplicate called on block with multiple successors!");
     for (MachineBasicBlock *Succ : TailBB->successors())
       PredBB->addSuccessor(Succ, MBPI->getEdgeProbability(TailBB, Succ));
+
+    // Optimize the return stack epilogue.
+    if (optimizeEpilogue)
+      TII->optimizeEpilogue(*PredBB);
 
     Changed = true;
     ++NumTailDups;

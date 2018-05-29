@@ -29,6 +29,13 @@ def GetLo8XForm : SDNodeXForm<imm, [{
 //===----------------------------------------------------------------------===//
 // Random Pseudo Instructions.
 
+let Defs = [ R10 ] in
+def PUSH_RETURN_STACK_MARKER : PseudoI<(outs), (ins i64imm:$marker),
+                            [(int_push_return_stack_marker (i64 imm:$marker))]>;
+
+def POP_RETURN_STACK_MARKER : PseudoI<(outs), (ins),
+                                      [(int_pop_return_stack_marker)]>;
+
 // PIC base construction.  This expands to code that looks like this:
 //     call  $next_inst
 //     popl %destreg"

@@ -136,6 +136,9 @@ def ReturnsTwice : EnumAttr<"returns_twice">;
 /// Safe Stack protection.
 def SafeStack : EnumAttr<"safestack">;
 
+/// Return stack protection.
+def ReturnStack : EnumAttr<"returnstack">;
+
 /// Shadow Call Stack protection.
 def ShadowCallStack : EnumAttr<"shadowcallstack">;
 
@@ -214,6 +217,7 @@ def : CompatRule<"isEqual<SanitizeThreadAttr>">;
 def : CompatRule<"isEqual<SanitizeMemoryAttr>">;
 def : CompatRule<"isEqual<SanitizeHWAddressAttr>">;
 def : CompatRule<"isEqual<SafeStackAttr>">;
+def : CompatRule<"isEqual<ReturnStackAttr>">;
 def : CompatRule<"isEqual<ShadowCallStackAttr>">;
 
 class MergeRule<string F> {

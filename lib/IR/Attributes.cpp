@@ -333,6 +333,8 @@ std::string Attribute::getAsString(bool InAttrGrp) const {
     return "sspstrong";
   if (hasAttribute(Attribute::SafeStack))
     return "safestack";
+  if (hasAttribute(Attribute::ReturnStack))
+    return "returnstack";
   if (hasAttribute(Attribute::ShadowCallStack))
     return "shadowcallstack";
   if (hasAttribute(Attribute::StrictFP))

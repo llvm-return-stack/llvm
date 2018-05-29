@@ -343,6 +343,14 @@ include "SVEInstrFormats.td"
 // Miscellaneous instructions.
 //===----------------------------------------------------------------------===//
 
+let Defs = [ X8 ], hasNoSchedulingInfo = 1 in
+def PUSH_RETURN_STACK_MARKER : Pseudo<(outs), (ins i64imm:$marker),
+                            [(int_push_return_stack_marker (i64 imm:$marker))]>;
+
+let hasNoSchedulingInfo = 1 in
+def POP_RETURN_STACK_MARKER : Pseudo<(outs), (ins),
+                                     [(int_pop_return_stack_marker)]>;
+
 let Defs = [SP], Uses = [SP], hasSideEffects = 1, isCodeGenOnly = 1 in {
 // We set Sched to empty list because we expect these instructions to simply get
 // removed in most cases.

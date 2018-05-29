@@ -382,7 +382,8 @@ X86Subtarget::X86Subtarget(const Triple &TT, StringRef CPU, StringRef FS,
                            const X86TargetMachine &TM,
                            unsigned StackAlignOverride,
                            unsigned PreferVectorWidthOverride,
-                           unsigned RequiredVectorWidth)
+                           unsigned RequiredVectorWidth,
+                           bool EnableReturnStack)
     : X86GenSubtargetInfo(TT, CPU, FS), X86ProcFamily(Others),
       PICStyle(PICStyles::None), TM(TM), TargetTriple(TT),
       StackAlignOverride(StackAlignOverride),
@@ -394,7 +395,7 @@ X86Subtarget::X86Subtarget(const Triple &TT, StringRef CPU, StringRef FS,
       In16BitMode(TargetTriple.getArch() == Triple::x86 &&
                   TargetTriple.getEnvironment() == Triple::CODE16),
       InstrInfo(initializeSubtargetDependencies(CPU, FS)), TLInfo(TM, *this),
-      FrameLowering(*this, getStackAlignment()) {
+      FrameLowering(*this, getStackAlignment(), EnableReturnStack) {
   // Determine the PICStyle based on the target selected.
   if (!isPositionIndependent())
     setPICStyle(PICStyles::None);

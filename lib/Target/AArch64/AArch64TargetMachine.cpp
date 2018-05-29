@@ -272,8 +272,9 @@ AArch64TargetMachine::getSubtargetImpl(const Function &F) const {
     // creation will depend on the TM and the code generation flags on the
     // function that reside in TargetOptions.
     resetTargetOptions(F);
+    bool EnableReturnStack = F.hasFnAttribute(Attribute::ReturnStack);
     I = llvm::make_unique<AArch64Subtarget>(TargetTriple, CPU, FS, *this,
-                                            isLittle);
+                                            isLittle, EnableReturnStack);
   }
   return I.get();
 }

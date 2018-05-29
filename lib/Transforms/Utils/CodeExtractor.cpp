@@ -749,6 +749,7 @@ Function *CodeExtractor::constructFunction(const ValueSet &inputs,
       case Attribute::OptimizeNone:
       case Attribute::OptimizeForSize:
       case Attribute::SafeStack:
+      case Attribute::ReturnStack:
       case Attribute::ShadowCallStack:
       case Attribute::SanitizeAddress:
       case Attribute::SanitizeMemory:

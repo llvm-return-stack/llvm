@@ -1322,6 +1322,11 @@ void FrameEmitterImpl::EmitCFIInstruction(const MCCFIInstruction &Instr) {
 
     return;
   }
+  case MCCFIInstruction::OpDefRSPOffset: {
+    Streamer.EmitIntValue(dwarf::DW_CFA_def_rsp_offset, 1);
+    Streamer.EmitULEB128IntValue(Instr.getOffset());
+    return;
+  }
   case MCCFIInstruction::OpOffset:
   case MCCFIInstruction::OpRelOffset: {
     const bool IsRelative =

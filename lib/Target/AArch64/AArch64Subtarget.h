@@ -162,7 +162,7 @@ public:
   /// of the specified triple.
   AArch64Subtarget(const Triple &TT, const std::string &CPU,
                    const std::string &FS, const TargetMachine &TM,
-                   bool LittleEndian);
+                   bool LittleEndian, bool EnableReturnStack);
 
   const AArch64SelectionDAGInfo *getSelectionDAGInfo() const override {
     return &TSInfo;

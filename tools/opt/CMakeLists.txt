@@ -12,6 +12,7 @@ set(LLVM_LINK_COMPONENTS
   Instrumentation
   MC
   ObjCARCOpts
+  ReturnStackSanitizer
   ScalarOpts
   Support
   Target

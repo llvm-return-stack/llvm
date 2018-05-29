@@ -19,10 +19,15 @@
 namespace llvm {
 
 class AArch64FrameLowering : public TargetFrameLowering {
+private:
+  /// True if return stack support is enabled for this frame.
+  bool HasReturnStackSupport;
+
 public:
-  explicit AArch64FrameLowering()
+  explicit AArch64FrameLowering(bool EnableReturnStack)
       : TargetFrameLowering(StackGrowsDown, 16, 0, 16,
-                            true /*StackRealignable*/) {}
+                            true /*StackRealignable*/),
+        HasReturnStackSupport(EnableReturnStack) {}
 
   void emitCalleeSavedFrameMoves(MachineBasicBlock &MBB,
                                  MachineBasicBlock::iterator MBBI) const;
@@ -52,6 +57,9 @@ public:
                                   MachineBasicBlock::iterator MI,
                                   std::vector<CalleeSavedInfo> &CSI,
                                   const TargetRegisterInfo *TRI) const override;
+
+  /// Returns true if return stack support is enabled for this frame.
+  bool hasReturnStackSupport() const { return HasReturnStackSupport; };
 
   /// Can this function use the red zone for local allocations.
   bool canUseRedZone(const MachineFunction &MF) const;

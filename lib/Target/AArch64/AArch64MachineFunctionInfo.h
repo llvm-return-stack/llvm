@@ -91,6 +91,10 @@ class AArch64FunctionInfo final : public MachineFunctionInfo {
   /// other stack allocations.
   bool CalleeSaveStackHasFreeSpace = false;
 
+  /// True when -fsanitize=return-stack is used and the link register is
+  /// spilled.
+  bool HasReturnStack = false;
+
   /// Has a value when it is known whether or not the function uses a
   /// redzone, and no value otherwise.
   /// Initialized during frame lowering, unless the function has the noredzone
@@ -122,6 +126,9 @@ public:
 
   bool isStackRealigned() const { return StackRealigned; }
   void setStackRealigned(bool s) { StackRealigned = s; }
+
+  void setHasReturnStack(bool b) { HasReturnStack = b; }
+  bool hasReturnStack() const { return HasReturnStack; }
 
   bool hasCalleeSaveStackFreeSpace() const {
     return CalleeSaveStackHasFreeSpace;

@@ -554,6 +554,7 @@ void AArch64FrameLowering::emitPrologue(MachineFunction &MF,
   const AArch64Subtarget &Subtarget = MF.getSubtarget<AArch64Subtarget>();
   const AArch64RegisterInfo *RegInfo = Subtarget.getRegisterInfo();
   const TargetInstrInfo *TII = Subtarget.getInstrInfo();
+  const MCRegisterInfo *MRI = Subtarget.getRegisterInfo();
   MachineModuleInfo &MMI = MF.getMMI();
   AArch64FunctionInfo *AFI = MF.getInfo<AArch64FunctionInfo>();
   bool needsFrameMoves = MMI.hasDebugInfo() || F.needsUnwindTableEntry();
@@ -572,6 +573,10 @@ void AArch64FrameLowering::emitPrologue(MachineFunction &MF,
   // prologue/epilogue.
   if (MF.getFunction().getCallingConv() == CallingConv::GHC)
     return;
+
+  // Move past the return stack spill instruction.
+  if (AFI->hasReturnStack())
+    ++MBBI;
 
   int NumBytes = (int)MFI.getStackSize();
   if (!AFI->hasStackFrame() && !windowsRequiresStackProbe(MF, NumBytes)) {
@@ -634,8 +639,11 @@ void AArch64FrameLowering::emitPrologue(MachineFunction &MF,
   }
   if (HasFP) {
     // Only set up FP if we actually need to. Frame pointer is fp =
-    // sp - fixedobject - 16.
-    int FPOffset = AFI->getCalleeSavedStackSize() - 16;
+    // sp - fixedobject - 16. If LR is spilled on the return stack, the local
+    // area offset is only 8.
+    int LocalAreaOffset = AFI->hasReturnStack() ? 8 : 16;
+    //int FPOffset = AFI->getCalleeSavedStackSize() - 16;
+    int FPOffset = AFI->getCalleeSavedStackSize() - LocalAreaOffset;
     if (CombineSPBump)
       FPOffset += AFI->getLocalStackSize();
 
@@ -812,8 +820,10 @@ void AArch64FrameLowering::emitPrologue(MachineFunction &MF,
     if (HasFP) {
       // Define the current CFA rule to use the provided FP.
       unsigned Reg = RegInfo->getDwarfRegNum(FramePtr, true);
+      int Offset =
+        (AFI->hasReturnStack() ? StackGrowth : 2 * StackGrowth) - FixedObject;
       unsigned CFIIndex = MF.addFrameInst(MCCFIInstruction::createDefCfa(
-          nullptr, Reg, 2 * StackGrowth - FixedObject));
+          nullptr, Reg, Offset));
       BuildMI(MBB, MBBI, DL, TII->get(TargetOpcode::CFI_INSTRUCTION))
           .addCFIIndex(CFIIndex)
           .setMIFlags(MachineInstr::FrameSetup);
@@ -821,6 +831,25 @@ void AArch64FrameLowering::emitPrologue(MachineFunction &MF,
       // Encode the stack size of the leaf function.
       unsigned CFIIndex = MF.addFrameInst(
           MCCFIInstruction::createDefCfaOffset(nullptr, -MFI.getStackSize()));
+      BuildMI(MBB, MBBI, DL, TII->get(TargetOpcode::CFI_INSTRUCTION))
+          .addCFIIndex(CFIIndex)
+          .setMIFlags(MachineInstr::FrameSetup);
+    }
+
+    if (AFI->hasReturnStack()) {
+      unsigned CFIIndex, DwarfReg;
+
+      // Define the current return stack pointer offset.
+      CFIIndex = MF.addFrameInst(
+          MCCFIInstruction::createDefRSPOffset(nullptr, -8));
+      BuildMI(MBB, MBBI, DL, TII->get(TargetOpcode::CFI_INSTRUCTION))
+          .addCFIIndex(CFIIndex)
+          .setMIFlags(MachineInstr::FrameSetup);
+
+      // Emit frame move for LR.
+      DwarfReg = MRI->getDwarfRegNum(AArch64::LR, true);
+      CFIIndex = MF.addFrameInst(
+          MCCFIInstruction::createOffset(nullptr, DwarfReg, 0));
       BuildMI(MBB, MBBI, DL, TII->get(TargetOpcode::CFI_INSTRUCTION))
           .addCFIIndex(CFIIndex)
           .setMIFlags(MachineInstr::FrameSetup);
@@ -910,6 +939,9 @@ void AArch64FrameLowering::emitEpilogue(MachineFunction &MF,
 
   if (!CombineSPBump && PrologueSaveSize != 0) {
     MachineBasicBlock::iterator Pop = std::prev(MBB.getFirstTerminator());
+    // Move past the return stack restore instruction.
+    if (AFI->hasReturnStack())
+      --Pop;
     // Converting the last ldp to a post-index ldp is valid only if the last
     // ldp's offset is 0.
     const MachineOperand &OffsetOp = Pop->getOperand(Pop->getNumOperands() - 1);
@@ -931,6 +963,9 @@ void AArch64FrameLowering::emitEpilogue(MachineFunction &MF,
   // save stack size, we might need to adjust the CSR save and restore offsets.
   MachineBasicBlock::iterator LastPopI = MBB.getFirstTerminator();
   MachineBasicBlock::iterator Begin = MBB.begin();
+  // Move past the return stack restore instruction.
+  if (AFI->hasReturnStack())
+    --LastPopI;
   while (LastPopI != Begin) {
     --LastPopI;
     if (!LastPopI->getFlag(MachineInstr::FrameDestroy)) {
@@ -1035,7 +1070,9 @@ int AArch64FrameLowering::resolveFrameIndexReference(const MachineFunction &MF,
   bool IsWin64 =
       Subtarget.isCallingConvWin64(MF.getFunction().getCallingConv());
   unsigned FixedObject = IsWin64 ? alignTo(AFI->getVarArgsGPRSize(), 16) : 0;
-  int FPOffset = MFI.getObjectOffset(FI) + FixedObject + 16;
+  // If LR is spilled on the return stack, the local area offset is only 8.
+  int LocalAreaOffset = AFI->hasReturnStack() ? 8 : 16;
+  int FPOffset = MFI.getObjectOffset(FI) + FixedObject + LocalAreaOffset;
   int Offset = MFI.getObjectOffset(FI) + MFI.getStackSize();
   bool isFixed = MFI.isFixedObjectIndex(FI);
   bool isCSR = !isFixed && MFI.getObjectOffset(FI) >=
@@ -1245,6 +1282,7 @@ bool AArch64FrameLowering::spillCalleeSavedRegisters(
     const TargetRegisterInfo *TRI) const {
   MachineFunction &MF = *MBB.getParent();
   const TargetInstrInfo &TII = *MF.getSubtarget().getInstrInfo();
+  const AArch64FunctionInfo *AFI = MF.getInfo<AArch64FunctionInfo>();
   DebugLoc DL;
   SmallVector<RegPairInfo, 8> RegPairs;
 
@@ -1252,6 +1290,19 @@ bool AArch64FrameLowering::spillCalleeSavedRegisters(
   computeCalleeSaveRegisterPairs(MF, CSI, TRI, RegPairs,
                                  NeedShadowCallStackProlog);
   const MachineRegisterInfo &MRI = MF.getRegInfo();
+
+  if (AFI->hasReturnStack()) {
+    // Spill LR on the return stack.
+    BuildMI(MBB, MI, DL, TII.get(AArch64::STRXpost))
+        .addReg(AArch64::X28, RegState::Define)
+        .addReg(AArch64::LR, getPrologueDeath(MF, AArch64::LR))
+        .addReg(AArch64::X28)
+        .addImm(8)
+        .setMIFlag(MachineInstr::FrameSetup);
+
+    // This instruction also makes x28 live-in to the entry block.
+    MBB.addLiveIn(AArch64::X28);
+  }
 
   if (NeedShadowCallStackProlog) {
     // Shadow call stack prolog: str x30, [x18], #8
@@ -1321,6 +1372,7 @@ bool AArch64FrameLowering::restoreCalleeSavedRegisters(
     const TargetRegisterInfo *TRI) const {
   MachineFunction &MF = *MBB.getParent();
   const TargetInstrInfo &TII = *MF.getSubtarget().getInstrInfo();
+  const AArch64FunctionInfo *AFI = MF.getInfo<AArch64FunctionInfo>();
   DebugLoc DL;
   SmallVector<RegPairInfo, 8> RegPairs;
 
@@ -1387,6 +1439,16 @@ bool AArch64FrameLowering::restoreCalleeSavedRegisters(
         .setMIFlag(MachineInstr::FrameDestroy);
   }
 
+  if (AFI->hasReturnStack()) {
+    // Restore LR from the return stack.
+    BuildMI(MBB, MI, DL, TII.get(AArch64::LDRXpre))
+        .addReg(AArch64::X28, RegState::Define)
+        .addReg(AArch64::LR, RegState::Define)
+        .addReg(AArch64::X28)
+        .addImm(-8)
+        .setMIFlag(MachineInstr::FrameDestroy);
+  }
+
   return true;
 }
 
@@ -1430,6 +1492,14 @@ void AArch64FrameLowering::determineCalleeSaves(MachineFunction &MF,
     SavedRegs.set(AArch64::LR);
   }
 
+  // If return stack support is enabled and LR is spilled, switch to emitting
+  // return stack instructions for this frame. Also, remove LR from the list of
+  // callee-saves.
+  if (HasReturnStackSupport && SavedRegs.test(AArch64::LR)) {
+    AFI->setHasReturnStack(true);
+    SavedRegs.reset(AArch64::LR);
+  }
+
   unsigned ExtraCSSpill = 0;
   // Figure out which callee-saved registers to save/restore.
   for (unsigned i = 0; CSRegs[i]; ++i) {
@@ -1465,11 +1535,13 @@ void AArch64FrameLowering::determineCalleeSaves(MachineFunction &MF,
              for (unsigned Reg
                   : SavedRegs.set_bits()) dbgs()
              << ' ' << printReg(Reg, RegInfo);
+             if (AFI->hasReturnStack()) dbgs()
+               << "\nReturn stack enabled";
              dbgs() << "\n";);
 
   // If any callee-saved registers are used, the frame cannot be eliminated.
   unsigned NumRegsSpilled = SavedRegs.count();
-  bool CanEliminateFrame = NumRegsSpilled == 0;
+  bool CanEliminateFrame = NumRegsSpilled == 0 || !AFI->hasReturnStack();
 
   // The CSR spill slots have not been allocated yet, so estimateStackSize
   // won't include them.

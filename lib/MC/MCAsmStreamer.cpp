@@ -268,6 +268,7 @@ public:
   void EmitCFIDefCfa(int64_t Register, int64_t Offset) override;
   void EmitCFIDefCfaOffset(int64_t Offset) override;
   void EmitCFIDefCfaRegister(int64_t Register) override;
+  void EmitCFIDefRSPOffset(int64_t Offset) override;
   void EmitCFIOffset(int64_t Register, int64_t Offset) override;
   void EmitCFIPersonality(const MCSymbol *Sym, unsigned Encoding) override;
   void EmitCFILsda(const MCSymbol *Sym, unsigned Encoding) override;
@@ -1409,6 +1410,12 @@ void MCAsmStreamer::EmitCFIDefCfa(int64_t Register, int64_t Offset) {
 void MCAsmStreamer::EmitCFIDefCfaOffset(int64_t Offset) {
   MCStreamer::EmitCFIDefCfaOffset(Offset);
   OS << "\t.cfi_def_cfa_offset " << Offset;
+  EmitEOL();
+}
+
+void MCAsmStreamer::EmitCFIDefRSPOffset(int64_t Offset) {
+  this->MCStreamer::EmitCFIDefRSPOffset(Offset);
+  OS << "\t.cfi_def_rsp_offset " << Offset;
   EmitEOL();
 }
 

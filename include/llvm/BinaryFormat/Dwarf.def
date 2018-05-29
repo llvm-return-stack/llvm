@@ -824,6 +824,8 @@ HANDLE_DW_CFA(0x16, val_expression)
 HANDLE_DW_CFA(0x1d, MIPS_advance_loc8)
 HANDLE_DW_CFA(0x2d, GNU_window_save)
 HANDLE_DW_CFA(0x2e, GNU_args_size)
+// Return stack extensions:
+HANDLE_DW_CFA(0x30, def_rsp_offset)
 
 // Apple Objective-C Property Attributes.
 // Keep this list in sync with clang's DeclSpec.h ObjCPropertyAttributeKind!

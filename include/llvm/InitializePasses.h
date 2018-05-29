@@ -333,6 +333,7 @@ void initializeRegionViewerPass(PassRegistry&);
 void initializeRegisterCoalescerPass(PassRegistry&);
 void initializeRenameIndependentSubregsPass(PassRegistry&);
 void initializeResetMachineFunctionPass(PassRegistry&);
+void initializeReturnStackSanitizerPass(PassRegistry&);
 void initializeReversePostOrderFunctionAttrsLegacyPassPass(PassRegistry&);
 void initializeRewriteStatepointsForGCLegacyPassPass(PassRegistry &);
 void initializeRewriteSymbolsLegacyPassPass(PassRegistry&);

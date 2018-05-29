@@ -40,6 +40,10 @@ private:
   ///
   unsigned StackPtr;
 
+  /// ReturnStackPtr - X86 physical register used as return stack ptr.
+  ///
+  unsigned ReturnStackPtr;
+
   /// FramePtr - X86 physical register used as frame ptr.
   ///
   unsigned FramePtr;
@@ -132,6 +136,7 @@ public:
   unsigned getFrameRegister(const MachineFunction &MF) const override;
   unsigned getPtrSizedFrameRegister(const MachineFunction &MF) const;
   unsigned getStackRegister() const { return StackPtr; }
+  unsigned getReturnStackRegister() const { return ReturnStackPtr; }
   unsigned getBaseRegister() const { return BasePtr; }
   /// Returns physical register used as frame pointer.
   /// This will always returns the frame pointer register, contrary to

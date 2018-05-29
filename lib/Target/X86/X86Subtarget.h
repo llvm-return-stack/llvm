@@ -456,7 +456,7 @@ public:
   X86Subtarget(const Triple &TT, StringRef CPU, StringRef FS,
                const X86TargetMachine &TM, unsigned StackAlignOverride,
                unsigned PreferVectorWidthOverride,
-               unsigned RequiredVectorWidth);
+               unsigned RequiredVectorWidth, bool EnableReturnStack);
 
   const X86TargetLowering *getTargetLowering() const override {
     return &TLInfo;

@@ -150,10 +150,11 @@ void AArch64Subtarget::initializeProperties() {
 
 AArch64Subtarget::AArch64Subtarget(const Triple &TT, const std::string &CPU,
                                    const std::string &FS,
-                                   const TargetMachine &TM, bool LittleEndian)
+                                   const TargetMachine &TM, bool LittleEndian,
+                                   bool EnableReturnStack)
     : AArch64GenSubtargetInfo(TT, CPU, FS),
       ReserveX18(AArch64::isX18ReservedByDefault(TT)), IsLittle(LittleEndian),
-      TargetTriple(TT), FrameLowering(),
+      TargetTriple(TT), FrameLowering(EnableReturnStack),
       InstrInfo(initializeSubtargetDependencies(FS, CPU)), TSInfo(),
       TLInfo(TM, *this) {
   CallLoweringInfo.reset(new AArch64CallLowering(*getTargetLowering()));

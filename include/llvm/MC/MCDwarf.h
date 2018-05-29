@@ -390,6 +390,7 @@ public:
     OpDefCfaRegister,
     OpDefCfaOffset,
     OpDefCfa,
+    OpDefRSPOffset,
     OpRelOffset,
     OpAdjustCfaOffset,
     OpEscape,
@@ -440,6 +441,10 @@ public:
   /// that will be added to a defined register to the compute CFA address.
   static MCCFIInstruction createDefCfaOffset(MCSymbol *L, int Offset) {
     return MCCFIInstruction(OpDefCfaOffset, L, 0, -Offset, "");
+  }
+
+  static MCCFIInstruction createDefRSPOffset(MCSymbol *L, int Offset) {
+    return MCCFIInstruction(OpDefRSPOffset, L, 0, Offset, "");
   }
 
   /// .cfi_adjust_cfa_offset Same as .cfi_def_cfa_offset, but
@@ -535,6 +540,7 @@ public:
   int getOffset() const {
     assert(Operation == OpDefCfa || Operation == OpOffset ||
            Operation == OpRelOffset || Operation == OpDefCfaOffset ||
+           Operation == OpDefRSPOffset ||
            Operation == OpAdjustCfaOffset || Operation == OpGnuArgsSize);
     return Offset;
   }

@@ -3922,6 +3922,80 @@ int X86InstrInfo::getSPAdjust(const MachineInstr &MI) const {
   }
 }
 
+bool X86InstrInfo::canOptimizeEpilogue(MachineBasicBlock &MBB) const {
+  const X86FrameLowering *TFL = Subtarget.getFrameLowering();
+
+  if (!TFL->hasReturnStack())
+    return false;
+
+  for (auto &MI : MBB)
+    if (MI.getFlag(MachineInstr::FrameDestroy) &&
+        MI.getOpcode() == X86::PUSH64rmm)
+      return true;
+
+  return false;
+}
+
+static bool isRetOpcode(unsigned Opc) {
+  return Opc == X86::RET || Opc == X86::RETL || Opc == X86::RETQ ||
+      Opc == X86::RETIL || Opc == X86::RETIQ;
+}
+
+bool X86InstrInfo::optimizeEpilogue(MachineBasicBlock &MBB) const {
+  const X86FrameLowering *TFL = Subtarget.getFrameLowering();
+
+  if (!TFL->hasReturnStack())
+    return false;
+
+  if (!MBB.isReturnBlock())
+    return false;
+
+  bool Changed = false;
+  const X86RegisterInfo *TRI = Subtarget.getRegisterInfo();
+  const X86InstrInfo *TII = Subtarget.getInstrInfo();
+  MachineBasicBlock::iterator RetMI = MBB.getFirstTerminator();
+  DebugLoc DL = RetMI->getDebugLoc();
+  MachineInstr *PushMI;
+
+  // Locate the PUSH instruction.
+  for (auto &MI : MBB) {
+    if (MI.getFlag(MachineInstr::FrameDestroy) &&
+        MI.getOpcode() == X86::PUSH64rmm) {
+      PushMI = &MI;
+      break;
+    }
+  }
+
+  if (isRetOpcode(RetMI->getOpcode()) && PushMI) {
+    // Replace the RET instruction with a direct JMP instruction.
+    MachineInstr *NewMI = BuildMI(MBB, RetMI, DL, TII->get(X86::JMP64m))
+        .addReg(TRI->getReturnStackRegister())
+        .addImm(0)
+        .addReg(0)
+        .addImm(0)
+        .addReg(0);
+
+    // Copy any used register (AX/EAX/RAX) from the RET instruction to the
+    // JMP instruction so that it's not marked dead by a subsequent pass.
+    for (unsigned i = 0, e = RetMI->getNumOperands(); i != e; ++i) {
+      if(RetMI->getOperand(i).isReg()) {
+        MachineOperand MO =
+            MachineOperand::CreateReg(RetMI->getOperand(i).getReg(),
+                                      /*isDef=*/false, /*isImp=*/true);
+        NewMI->addOperand(MO);
+      }
+    }
+
+    // Remove the PUSH and RET instructions.
+    MBB.erase(PushMI);
+    MBB.erase(RetMI);
+
+    Changed = true;
+  }
+
+  return Changed;
+}
+
 /// Return true and the FrameIndex if the specified
 /// operand and follow operands form a reference to the stack frame.
 bool X86InstrInfo::isFrameOperand(const MachineInstr &MI, unsigned int Op,

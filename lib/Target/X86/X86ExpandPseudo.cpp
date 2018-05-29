@@ -176,6 +176,49 @@ bool X86ExpandPseudo::ExpandMI(MachineBasicBlock &MBB,
   switch (Opcode) {
   default:
     return false;
+
+  case X86::PUSH_RETURN_STACK_MARKER: {
+    assert(STI->is64Bit() && "Intrinsic not expandable for 32-bit!");
+    unsigned ReturnStackPtr = TRI->getReturnStackRegister();
+    unsigned TempReg = X86::R10;
+    DebugLoc DL = MBBI->getDebugLoc();
+
+    // Copy the marker to the temporary register.
+    BuildMI(MBB, MBBI, DL, TII->get(X86::MOV64ri), TempReg)
+        .addImm(MI.getOperand(0).getImm());
+
+    // Push the marker from the register onto the return stack.
+    addRegOffset(BuildMI(MBB, MBBI, DL, TII->get(X86::MOV64mr)),
+                 ReturnStackPtr, true, 0)
+        .addReg(TempReg);
+
+    // Increment the return stack pointer.
+    BuildMI(MBB, MBBI, DL, TII->get(X86::ADD64ri8), ReturnStackPtr)
+        .addReg(ReturnStackPtr)
+        .addImm(8)
+        ->getOperand(3)
+        .setIsDead();
+
+    MBB.erase(MBBI);
+    return true;
+  }
+
+  case X86::POP_RETURN_STACK_MARKER: {
+    assert(STI->is64Bit() && "Intrinsic not expandable for 32-bit!");
+    unsigned ReturnStackPtr = TRI->getReturnStackRegister();
+    DebugLoc DL = MBBI->getDebugLoc();
+
+    // Decrement the return stack pointer.
+    BuildMI(MBB, MBBI, DL, TII->get(X86::SUB64ri8), ReturnStackPtr)
+        .addReg(ReturnStackPtr)
+        .addImm(8)
+        ->getOperand(3)
+        .setIsDead();
+
+    MBB.erase(MBBI);
+    return true;
+  }
+
   case X86::TCRETURNdi:
   case X86::TCRETURNdicc:
   case X86::TCRETURNri:

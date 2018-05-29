@@ -131,6 +131,10 @@ AArch64RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   markSuperRegs(Reserved, AArch64::WSP);
   markSuperRegs(Reserved, AArch64::WZR);
 
+  // Reserve the return stack pointer register.
+  if (TFI->hasReturnStackSupport())
+    markSuperRegs(Reserved, AArch64::W28);
+
   if (TFI->hasFP(MF) || TT.isOSDarwin())
     markSuperRegs(Reserved, AArch64::W29);
 
@@ -159,6 +163,9 @@ bool AArch64RegisterInfo::isReservedReg(const MachineFunction &MF,
   case AArch64::X18:
   case AArch64::W18:
     return MF.getSubtarget<AArch64Subtarget>().isX18Reserved();
+  case AArch64::X28:
+  case AArch64::W28:
+    return TFI->hasReturnStackSupport();
   case AArch64::FP:
   case AArch64::W29:
     return TFI->hasFP(MF) || TT.isOSDarwin();
@@ -430,6 +437,7 @@ unsigned AArch64RegisterInfo::getRegPressureLimit(const TargetRegisterClass *RC,
   case AArch64::GPR64commonRegClassID:
     return 32 - 1                                   // XZR/SP
               - (TFI->hasFP(MF) || TT.isOSDarwin()) // FP
+              - TFI->hasReturnStackSupport() // X28 reserved as return stack pointer
               - MF.getSubtarget<AArch64Subtarget>()
                     .isX18Reserved() // X18 reserved as platform register
               - hasBasePointer(MF);  // X19

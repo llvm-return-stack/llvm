@@ -25,8 +25,13 @@ class X86Subtarget;
 class X86RegisterInfo;
 
 class X86FrameLowering : public TargetFrameLowering {
+private:
+  /// True if return stack instructions are emitted for this frame.
+  bool HasReturnStack;
+
 public:
-  X86FrameLowering(const X86Subtarget &STI, unsigned StackAlignOverride);
+  X86FrameLowering(const X86Subtarget &STI, unsigned StackAlignOverride,
+                   bool EnableReturnStack);
 
   // Cached subtarget predicates.
 
@@ -47,6 +52,7 @@ public:
   bool Uses64BitFramePtr;
 
   unsigned StackPtr;
+  unsigned ReturnStackPtr;
 
   /// Emit target stack probe code. This is required for all
   /// large stack allocations on Windows. The caller is required to materialize
@@ -91,6 +97,9 @@ public:
                                   MachineBasicBlock::iterator MI,
                                   std::vector<CalleeSavedInfo> &CSI,
                                   const TargetRegisterInfo *TRI) const override;
+
+  /// Returns true if return stack instructions are emitted for this frame.
+  bool hasReturnStack() const { return HasReturnStack; };
 
   bool hasFP(const MachineFunction &MF) const override;
   bool hasReservedCallFrame(const MachineFunction &MF) const override;

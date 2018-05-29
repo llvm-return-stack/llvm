@@ -199,6 +199,7 @@ void CFIInstrInserter::calculateOutgoingCFAInfo(MBBCFAInfo &MBBInfo) {
 #endif
         break;
       // Other CFI directives do not affect CFA value.
+      case MCCFIInstruction::OpDefRSPOffset:
       case MCCFIInstruction::OpSameValue:
       case MCCFIInstruction::OpOffset:
       case MCCFIInstruction::OpRelOffset:

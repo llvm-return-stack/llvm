@@ -302,9 +302,10 @@ X86TargetMachine::getSubtargetImpl(const Function &F) const {
     // function that reside in TargetOptions.
     resetTargetOptions(F);
     I = llvm::make_unique<X86Subtarget>(TargetTriple, CPU, FS, *this,
-                                        Options.StackAlignmentOverride,
-                                        PreferVectorWidthOverride,
-                                        RequiredVectorWidth);
+                                       Options.StackAlignmentOverride,
+                                       PreferVectorWidthOverride,
+                                       RequiredVectorWidth,
+                                       F.hasFnAttribute(Attribute::ReturnStack));
   }
   return I.get();
 }

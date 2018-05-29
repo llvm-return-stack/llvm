@@ -866,6 +866,7 @@ public:
   virtual void EmitCFIDefCfa(int64_t Register, int64_t Offset);
   virtual void EmitCFIDefCfaOffset(int64_t Offset);
   virtual void EmitCFIDefCfaRegister(int64_t Register);
+  virtual void EmitCFIDefRSPOffset(int64_t Offset);
   virtual void EmitCFIOffset(int64_t Register, int64_t Offset);
   virtual void EmitCFIPersonality(const MCSymbol *Sym, unsigned Encoding);
   virtual void EmitCFILsda(const MCSymbol *Sym, unsigned Encoding);

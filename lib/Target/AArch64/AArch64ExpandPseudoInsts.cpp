@@ -770,6 +770,41 @@ bool AArch64ExpandPseudo::expandMI(MachineBasicBlock &MBB,
   default:
     break;
 
+  case AArch64::PUSH_RETURN_STACK_MARKER: {
+    DebugLoc DL = MBBI->getDebugLoc();
+
+    // Copy the marker to the temporary register using the MOVi64imm pseudo
+    // instruction.
+    BuildMI(MBB, MBBI, DL, TII->get(AArch64::MOVi64imm), AArch64::X8)
+        .addImm(MI.getOperand(0).getImm());
+
+    // Immediately expand the pseudo instruction.
+    expandMOVImm(MBB, std::prev(MBBI), 64);
+
+    // Push the marker from the register onto the return stack.
+    BuildMI(MBB, MBBI, DL, TII->get(AArch64::STRXpost))
+        .addReg(AArch64::X28, RegState::Define)
+        .addReg(AArch64::X8)
+        .addReg(AArch64::X28)
+        .addImm(8);
+
+    MBB.erase(MBBI);
+    return true;
+  }
+
+  case AArch64::POP_RETURN_STACK_MARKER: {
+    DebugLoc DL = MBBI->getDebugLoc();
+
+    // Decrement the return stack pointer by 8.
+    BuildMI(MBB, MBBI, DL, TII->get(AArch64::SUBXri), AArch64::X28)
+        .addReg(AArch64::X28)
+        .addImm(8)
+        .addImm(0);
+
+    MBB.erase(MBBI);
+    return true;
+  }
+
   case AArch64::ADDWrr:
   case AArch64::SUBWrr:
   case AArch64::ADDXrr:

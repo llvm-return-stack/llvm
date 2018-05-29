@@ -206,6 +206,17 @@ public:
   /// to enable more fine-grained adjustment, or adjust by a different value.
   virtual int getSPAdjust(const MachineInstr &MI) const;
 
+  /// Checks whether a function epilogue is a return stack epilogue that can be
+  /// optimized.
+  virtual bool canOptimizeEpilogue(MachineBasicBlock &MBB) const {
+    return false;
+  }
+
+  /// Searches for a return stack epilogue and optimizes it.
+  virtual bool optimizeEpilogue(MachineBasicBlock &MBB) const {
+    return false;
+  }
+
   /// Return true if the instruction is a "coalescable" extension instruction.
   /// That is, it's like a copy where it's legal for the source to overlap the
   /// destination. e.g. X86::MOVSX64rr32. If this returns true, then it's

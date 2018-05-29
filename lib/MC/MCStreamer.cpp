@@ -427,6 +427,14 @@ void MCStreamer::EmitCFIDefCfaRegister(int64_t Register) {
   CurFrame->CurrentCfaRegister = static_cast<unsigned>(Register);
 }
 
+void MCStreamer::EmitCFIDefRSPOffset(int64_t Offset) {
+  MCSymbol *Label = EmitCFILabel();
+  MCCFIInstruction Instruction =
+    MCCFIInstruction::createDefRSPOffset(Label, Offset);
+  MCDwarfFrameInfo *CurFrame = getCurrentDwarfFrameInfo();
+  CurFrame->Instructions.push_back(Instruction);
+}
+
 void MCStreamer::EmitCFIOffset(int64_t Register, int64_t Offset) {
   MCSymbol *Label = EmitCFILabel();
   MCCFIInstruction Instruction =

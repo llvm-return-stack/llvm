@@ -63,6 +63,7 @@ X86RegisterInfo::X86RegisterInfo(const Triple &TT)
     // FIXME: Should use the data layout?
     bool Use64BitReg = TT.getEnvironment() != Triple::GNUX32;
     StackPtr = Use64BitReg ? X86::RSP : X86::ESP;
+    ReturnStackPtr = X86::R15;
     FramePtr = Use64BitReg ? X86::RBP : X86::EBP;
     BasePtr = Use64BitReg ? X86::RBX : X86::EBX;
   } else {
@@ -501,6 +502,13 @@ BitVector X86RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   for (MCSubRegIterator I(X86::RSP, this, /*IncludeSelf=*/true); I.isValid();
        ++I)
     Reserved.set(*I);
+
+  // Set the return stack pointer register and its aliases as reserved.
+  if (TFI->hasReturnStack()) {
+    unsigned RSP = getX86SubSuperRegister(getReturnStackRegister(), 64);
+    for (MCSubRegIterator I(RSP, this, /*IncludeSelf=*/true); I.isValid(); ++I)
+      Reserved.set(*I);
+  }
 
   // Set the Shadow Stack Pointer as reserved.
   Reserved.set(X86::SSP);

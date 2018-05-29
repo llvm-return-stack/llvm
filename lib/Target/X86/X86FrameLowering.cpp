@@ -36,17 +36,22 @@
 using namespace llvm;
 
 X86FrameLowering::X86FrameLowering(const X86Subtarget &STI,
-                                   unsigned StackAlignOverride)
+                                   unsigned StackAlignOverride,
+                                   bool EnableReturnStack)
     : TargetFrameLowering(StackGrowsDown, StackAlignOverride,
-                          STI.is64Bit() ? -8 : -4),
+                          STI.is64Bit() ? (EnableReturnStack ? 0 : -8) : -4),
       STI(STI), TII(*STI.getInstrInfo()), TRI(STI.getRegisterInfo()) {
   // Cache a bunch of frame-related predicates for this subtarget.
   SlotSize = TRI->getSlotSize();
   Is64Bit = STI.is64Bit();
   IsLP64 = STI.isTarget64BitLP64();
+  // If return stack support is enabled and we are on 64-bit, switch to emitting
+  // return stack instructions for this frame.
+  HasReturnStack = STI.is64Bit() && EnableReturnStack;
   // standard x86_64 and NaCl use 64-bit frame/stack pointers, x32 - 32-bit.
   Uses64BitFramePtr = STI.isTarget64BitLP64() || STI.isTargetNaCl64();
   StackPtr = TRI->getStackRegister();
+  ReturnStackPtr = TRI->getReturnStackRegister();
 }
 
 bool X86FrameLowering::hasReservedCallFrame(const MachineFunction &MF) const {
@@ -1069,6 +1074,42 @@ void X86FrameLowering::emitPrologue(MachineFunction &MF,
     MBB.addLiveIn(Establisher);
   }
 
+  if (HasReturnStack) {
+    // Move the return address from the regular stack onto the return stack.
+    BuildMI(MBB, MBBI, DL, TII.get(X86::POP64rmm))
+        .addReg(ReturnStackPtr)
+        .addImm(0)
+        .addReg(0)
+        .addImm(0)
+        .addReg(0)
+        .setMIFlag(MachineInstr::FrameSetup);
+    MBB.addLiveIn(ReturnStackPtr);
+
+    // Adjust beginning of frame after the return address has been moved.
+    if (NeedsDwarfCFI) {
+      BuildCFI(MBB, MBBI, DL, MCCFIInstruction::createDefCfaOffset(nullptr, 0));
+    }
+
+    // Update the return stack pointer.
+    BuildMI(MBB, MBBI, DL, TII.get(X86::LEA64r), ReturnStackPtr)
+        .addReg(ReturnStackPtr)
+        .addImm(0)
+        .addReg(0)
+        .addImm(8)
+        .addReg(0)
+        .setMIFlag(MachineInstr::FrameSetup);
+
+    if (NeedsDwarfCFI) {
+      // Mark offset of the return stack pointer.
+      BuildCFI(MBB, MBBI, DL, MCCFIInstruction::createDefRSPOffset(nullptr, -8));
+
+      // Adjust offset of the return address.
+      unsigned DwarfInstPtr = TRI->getDwarfRegNum(X86::RIP, true);
+      BuildCFI(MBB, MBBI, DL, MCCFIInstruction::createOffset(nullptr,
+                                                             DwarfInstPtr, 0));
+    }
+  }
+
   if (HasFP) {
     assert(MF.getRegInfo().isReserved(MachineFramePtr) && "FP reserved");
 
@@ -1101,14 +1142,13 @@ void X86FrameLowering::emitPrologue(MachineFunction &MF,
     if (NeedsDwarfCFI) {
       // Mark the place where EBP/RBP was saved.
       // Define the current CFA rule to use the provided offset.
-      assert(StackSize);
-      BuildCFI(MBB, MBBI, DL,
-               MCCFIInstruction::createDefCfaOffset(nullptr, 2 * stackGrowth));
+      BuildCFI(MBB, MBBI, DL, MCCFIInstruction::createDefCfaOffset(nullptr,
+            HasReturnStack ? stackGrowth : 2 * stackGrowth));
 
       // Change the rule for the FramePtr to be an "offset" rule.
       unsigned DwarfFramePtr = TRI->getDwarfRegNum(MachineFramePtr, true);
-      BuildCFI(MBB, MBBI, DL, MCCFIInstruction::createOffset(
-                                  nullptr, DwarfFramePtr, 2 * stackGrowth));
+      BuildCFI(MBB, MBBI, DL, MCCFIInstruction::createOffset(nullptr,
+            DwarfFramePtr, HasReturnStack ? stackGrowth : 2 * stackGrowth));
     }
 
     if (NeedsWinCFI) {
@@ -1156,7 +1196,7 @@ void X86FrameLowering::emitPrologue(MachineFunction &MF,
 
   // Skip the callee-saved push instructions.
   bool PushedRegs = false;
-  int StackOffset = 2 * stackGrowth;
+  int StackOffset = HasReturnStack ? stackGrowth : 2 * stackGrowth;
 
   while (MBBI != MBB.end() &&
          MBBI->getFlag(MachineInstr::FrameSetup) &&
@@ -1447,8 +1487,8 @@ void X86FrameLowering::emitPrologue(MachineFunction &MF,
     if (!HasFP && NumBytes) {
       // Define the current CFA rule to use the provided offset.
       assert(StackSize);
-      BuildCFI(MBB, MBBI, DL, MCCFIInstruction::createDefCfaOffset(
-                                  nullptr, -StackSize + stackGrowth));
+      BuildCFI(MBB, MBBI, DL, MCCFIInstruction::createDefCfaOffset(nullptr,
+            HasReturnStack ? -StackSize : -StackSize + stackGrowth));
     }
 
     // Emit DWARF info specifying the offsets of the callee-saved registers.
@@ -1550,6 +1590,11 @@ static bool isTailCallOpcode(unsigned Opc) {
         Opc == X86::TCRETURNmi64;
 }
 
+static bool isRetOpcode(unsigned Opc) {
+  return Opc == X86::RET || Opc == X86::RETL || Opc == X86::RETQ ||
+      Opc == X86::RETIL || Opc == X86::RETIQ;
+}
+
 void X86FrameLowering::emitEpilogue(MachineFunction &MF,
                                     MachineBasicBlock &MBB) const {
   const MachineFrameInfo &MFI = MF.getFrameInfo();
@@ -1629,6 +1674,17 @@ void X86FrameLowering::emitEpilogue(MachineFunction &MF,
     --MBBI;
   }
   MBBI = FirstCSPop;
+
+  // Update the return stack pointer.
+  if (HasReturnStack) {
+    BuildMI(MBB, MBBI, DL, TII.get(X86::LEA64r), ReturnStackPtr)
+        .addReg(ReturnStackPtr)
+        .addImm(0)
+        .addReg(0)
+        .addImm(-8)
+        .addReg(0)
+        .setMIFlag(MachineInstr::FrameDestroy);
+  }
 
   if (IsFunclet && Terminator->getOpcode() == X86::CATCHRET)
     emitCatchRetReturnValue(MBB, FirstCSPop, &*Terminator);
@@ -1716,6 +1772,42 @@ void X86FrameLowering::emitEpilogue(MachineFunction &MF,
       // Check for possible merge with preceding ADD instruction.
       Offset += mergeSPUpdates(MBB, Terminator, true);
       emitSPUpdate(MBB, Terminator, DL, Offset, /*InEpilogue=*/true);
+    }
+  }
+
+  if (HasReturnStack) {
+    MBBI = MBB.getFirstTerminator();
+    if (isRetOpcode(Terminator->getOpcode())) {
+      // For regular epilogues, replace the return instruction with a direct
+      // jump that uses the address saved on the return stack as target.
+      MachineInstr *MI = BuildMI(MBB, MBBI, DL, TII.get(X86::JMP64m))
+          .addReg(ReturnStackPtr)
+          .addImm(0)
+          .addReg(0)
+          .addImm(0)
+          .addReg(0);
+      // Copy any used register (AX/EAX/RAX) from the RET instruction to the
+      // JMP instruction so that it's not marked dead by a subsequent pass.
+      for (unsigned i = 0, e = MBBI->getNumOperands(); i != e; ++i) {
+        if(MBBI->getOperand(i).isReg()) {
+          MachineOperand MO =
+              MachineOperand::CreateReg(MBBI->getOperand(i).getReg(),
+                                        /*isDef=*/false, /*isImp=*/true);
+          MI->addOperand(MO);
+        }
+      }
+      // Remove the return instruction.
+      MBB.erase(MBBI);
+    } else {
+      // For tail calls or early epilogues, restore EIP/RIP to the regular
+      // stack.
+      BuildMI(MBB, MBBI, DL, TII.get(X86::PUSH64rmm))
+          .addReg(ReturnStackPtr)
+          .addImm(0)
+          .addReg(0)
+          .addImm(0)
+          .addReg(0)
+          .setMIFlag(MachineInstr::FrameDestroy);
     }
   }
 }

@@ -227,6 +227,15 @@ public:
   /// sequences involving PUSHes.
   int getSPAdjust(const MachineInstr &MI) const override;
 
+  /// canOptimizeEpilogue - Check whether a function epilogue is a return stack
+  /// epilogue (e.g. "PUSHQ (%R15); RET;") that can be optimized to
+  /// "JMPQ *(%R15);".
+  bool canOptimizeEpilogue(MachineBasicBlock &MBB) const override;
+
+  /// optimizeEpilogue - Search for a return stack epilogue (e.g.
+  /// "PUSHQ (%R15); RET;") and optimize it to "JMPQ *(%R15);".
+  bool optimizeEpilogue(MachineBasicBlock &MBB) const override;
+
   /// isCoalescableExtInstr - Return true if the instruction is a "coalescable"
   /// extension instruction. That is, it's like a copy where it's legal for the
   /// source to overlap the destination. e.g. X86::MOVSX64rr32. If this returns

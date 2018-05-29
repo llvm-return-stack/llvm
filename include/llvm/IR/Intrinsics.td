@@ -804,6 +804,11 @@ def int_coro_subfn_addr : Intrinsic<[llvm_ptr_ty], [llvm_ptr_ty, llvm_i8_ty],
                                     [IntrReadMem, IntrArgMemOnly, ReadOnly<0>,
                                      NoCapture<0>]>;
 
+///===---------------------- Return Stack Intrinsics -----------------------===//
+//
+def int_push_return_stack_marker : Intrinsic<[], [llvm_anyint_ty]>;
+def int_pop_return_stack_marker : Intrinsic<[]>;
+
 ///===-------------------------- Other Intrinsics --------------------------===//
 //
 def int_flt_rounds : Intrinsic<[llvm_i32_ty]>,
