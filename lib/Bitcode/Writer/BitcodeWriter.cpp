@@ -676,6 +676,8 @@ static uint64_t getAttrKindEncoding(Attribute::AttrKind Kind) {
     return bitc::ATTR_KIND_STACK_PROTECT_STRONG;
   case Attribute::SafeStack:
     return bitc::ATTR_KIND_SAFESTACK;
+  case Attribute::ReturnStack:
+    return bitc:ATTR_KIND_RETURNSTACK:
   case Attribute::ShadowCallStack:
     return bitc::ATTR_KIND_SHADOWCALLSTACK;
   case Attribute::StrictFP:
